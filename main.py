@@ -53,9 +53,18 @@ class GarmentDB:
         @param color Color of the garment.
         @param style Style of the garment.
         @param quantity Quantity in stock.
+        @return True if added, False if duplicate or error.
         """
-        self.conn.execute('INSERT INTO garments (name, size, color, style, quantity) VALUES (?, ?, ?, ?, ?)', (name, size, color, style, quantity))
-        self.conn.commit()
+        try:
+            # Prevent duplicate (name, size, color, style) entries
+            cursor = self.conn.execute('SELECT COUNT(*) FROM garments WHERE name=? AND size=? AND color=? AND style=?', (name, size, color, style))
+            if cursor.fetchone()[0] > 0:
+                return False
+            self.conn.execute('INSERT INTO garments (name, size, color, style, quantity) VALUES (?, ?, ?, ?, ?)', (name, size, color, style, quantity))
+            self.conn.commit()
+            return True
+        except Exception:
+            return False
 
     def update_garment(self, garment_id, name, size, color, style, quantity):
         """
@@ -179,6 +188,36 @@ class GarmentApp:
         self.tree.pack(fill='both', expand=True, pady=10)
         self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
 
+        # Responsive: Bind window resize event
+        self.root.bind('<Configure>', self.on_window_resize)
+
+    def on_window_resize(self, event=None):
+        """
+        @brief Recalculate column widths based on the longest cell content when the window is resized.
+        """
+        # Get all data in the treeview
+        col_names = ('ID', 'Name', 'Size', 'Color', 'Style', 'Quantity')
+        max_lens = {col: len(col) for col in col_names}
+        for row_id in self.tree.get_children():
+            values = self.tree.item(row_id)['values']
+            for idx, col in enumerate(col_names):
+                val = str(values[idx])
+                if len(val) > max_lens[col]:
+                    max_lens[col] = len(val)
+        # Estimate pixel width (approx. 8 pixels per character + padding)
+        total_width = self.tree.winfo_width()
+        if total_width <= 1:
+            total_width = sum(max_lens[col] * 8 + 20 for col in col_names)
+        # Proportionally distribute available width
+        total_chars = sum(max_lens.values())
+        for col in col_names:
+            if total_chars > 0:
+                width = int(total_width * (max_lens[col] / total_chars))
+            else:
+                width = max_lens[col] * 8 + 20
+            width = max(60, min(400, width))
+            self.tree.column(col, width=width)
+
     def import_csv(self):
         """
         @brief Open a file dialog to import garments from a CSV file and add them to the database.
@@ -190,19 +229,28 @@ class GarmentApp:
         if not file_path:
             return
         count = 0
+        skipped = 0
         try:
             with open(file_path, newline='', encoding='utf-8') as csvfile:
                 reader = csv.reader(csvfile)
                 for row in reader:
                     if len(row) != 5:
+                        skipped += 1
                         continue  # skip invalid rows
                     name, size, color, style, quantity = row
-                    if not quantity.isdigit():
+                    if not name.strip() or not size.strip() or not color.strip() or not style.strip() or not quantity.strip():
+                        skipped += 1
                         continue
-                    self.db.add_garment(name.strip(), size.strip(), color.strip(), style.strip(), int(quantity))
-                    count += 1
+                    if not quantity.isdigit() or int(quantity) < 0:
+                        skipped += 1
+                        continue
+                    added = self.db.add_garment(name.strip(), size.strip(), color.strip(), style.strip(), int(quantity))
+                    if added:
+                        count += 1
+                    else:
+                        skipped += 1
             self.refresh_table()
-            messagebox.showinfo('Import Complete', f'Successfully imported {count} garments.')
+            messagebox.showinfo('Import Complete', f'Successfully imported {count} garments. Skipped {skipped} invalid or duplicate rows.')
         except Exception as e:
             messagebox.showerror('Import Failed', f'Error: {e}')
 
@@ -221,7 +269,10 @@ class GarmentApp:
         if not quantity.isdigit() or int(quantity) < 0:
             messagebox.showwarning('Input Error', 'Quantity must be a non-negative integer.')
             return
-        self.db.add_garment(name, size, color, style, int(quantity))
+        added = self.db.add_garment(name, size, color, style, int(quantity))
+        if not added:
+            messagebox.showwarning('Duplicate/Error', 'This garment already exists or there was a database error.')
+            return
         self.refresh_table()
         self.clear_form()
 
@@ -245,7 +296,11 @@ class GarmentApp:
         if not quantity.isdigit() or int(quantity) < 0:
             messagebox.showwarning('Input Error', 'Quantity must be a non-negative integer.')
             return
-        self.db.update_garment(garment_id, name, size, color, style, int(quantity))
+        try:
+            self.db.update_garment(garment_id, name, size, color, style, int(quantity))
+        except Exception as e:
+            messagebox.showerror('Update Error', f'Could not update garment: {e}')
+            return
         self.refresh_table()
         self.clear_form()
 
@@ -258,10 +313,13 @@ class GarmentApp:
             messagebox.showwarning('Select a record', 'No garment selected.')
             return
         garment_id = self.tree.item(selected[0])['values'][0]
-        if messagebox.askyesno('Confirm Delete', 'Delete selected garment?'):
-            self.db.delete_garment(garment_id)
-            self.refresh_table()
-            self.clear_form()
+        try:
+            if messagebox.askyesno('Confirm Delete', 'Delete selected garment?'):
+                self.db.delete_garment(garment_id)
+                self.refresh_table()
+                self.clear_form()
+        except Exception as e:
+            messagebox.showerror('Delete Error', f'Could not delete garment: {e}')
 
     def clear_form(self):
         """
@@ -283,6 +341,7 @@ class GarmentApp:
             self.tree.delete(row)
         for garment in self.db.fetch_garments(filters):
             self.tree.insert('', 'end', values=garment)
+        self.on_window_resize()
 
     def apply_filter(self):
         """
