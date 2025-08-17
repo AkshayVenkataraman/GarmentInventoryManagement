@@ -19,10 +19,6 @@ A Python GUI-based tool to manage garment inventory by size, color, and style.
 - Use the GUI to add, update, or remove garments
 - All data is saved automatically
 
-## To Do
-- Add search/filter functionality
-- Export inventory to CSV
-
 ---
 
 *This is a basic starter project. Extend as needed for your workflow.*
