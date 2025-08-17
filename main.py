@@ -1,18 +1,35 @@
+
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import csv
 import sqlite3
 
+## @file main.py
+## @brief Garment Inventory Management System - GUI and Database logic.
+##
+## This file contains the main application logic for managing garment inventory using a Tkinter GUI and SQLite database.
+## It provides classes for database operations and the graphical user interface, including CSV import, CRUD, and filtering.
+
 DB_NAME = 'garments.db'
 
+
 class GarmentDB:
+    """
+    @class GarmentDB
+    @brief Handles all database operations for garment inventory.
+    """
+
     def __init__(self):
-        """Initialize the GarmentDB and create the garments table if it doesn't exist."""
+        """
+        @brief Initialize the GarmentDB and create the garments table if it doesn't exist.
+        """
         self.conn = sqlite3.connect(DB_NAME)
         self.create_table()
 
     def create_table(self):
-        """Create the garments table and add the quantity column if upgrading from an old DB."""
+        """
+        @brief Create the garments table and add the quantity column if upgrading from an old DB.
+        """
         self.conn.execute('''CREATE TABLE IF NOT EXISTS garments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -29,22 +46,44 @@ class GarmentDB:
         self.conn.commit()
 
     def add_garment(self, name, size, color, style, quantity):
-        """Add a new garment to the database."""
+        """
+        @brief Add a new garment to the database.
+        @param name Name of the garment.
+        @param size Size of the garment.
+        @param color Color of the garment.
+        @param style Style of the garment.
+        @param quantity Quantity in stock.
+        """
         self.conn.execute('INSERT INTO garments (name, size, color, style, quantity) VALUES (?, ?, ?, ?, ?)', (name, size, color, style, quantity))
         self.conn.commit()
 
     def update_garment(self, garment_id, name, size, color, style, quantity):
-        """Update an existing garment in the database by ID."""
+        """
+        @brief Update an existing garment in the database by ID.
+        @param garment_id ID of the garment to update.
+        @param name Updated name.
+        @param size Updated size.
+        @param color Updated color.
+        @param style Updated style.
+        @param quantity Updated quantity.
+        """
         self.conn.execute('UPDATE garments SET name=?, size=?, color=?, style=?, quantity=? WHERE id=?', (name, size, color, style, quantity, garment_id))
         self.conn.commit()
 
     def delete_garment(self, garment_id):
-        """Delete a garment from the database by ID."""
+        """
+        @brief Delete a garment from the database by ID.
+        @param garment_id ID of the garment to delete.
+        """
         self.conn.execute('DELETE FROM garments WHERE id=?', (garment_id,))
         self.conn.commit()
 
     def fetch_garments(self, filters=None):
-        """Fetch garments from the database, optionally filtered by the provided criteria."""
+        """
+        @brief Fetch garments from the database, optionally filtered by the provided criteria.
+        @param filters Dictionary of filter criteria (name, size, color, style).
+        @return List of garment records.
+        """
         query = 'SELECT * FROM garments'
         params = []
         if filters:
@@ -62,9 +101,18 @@ class GarmentDB:
         cursor = self.conn.execute(query, params)
         return cursor.fetchall()
 
+
 class GarmentApp:
+    """
+    @class GarmentApp
+    @brief Main application class for the Garment Inventory Management GUI.
+    """
+
     def __init__(self, root):
-        """Initialize the GarmentApp GUI and database connection."""
+        """
+        @brief Initialize the GarmentApp GUI and database connection.
+        @param root Tkinter root window.
+        """
         self.db = GarmentDB()
         self.root = root
         self.root.title('Garment Inventory Management')
@@ -72,7 +120,9 @@ class GarmentApp:
         self.refresh_table()
 
     def create_widgets(self):
-        """Create and layout all GUI widgets for the application."""
+        """
+        @brief Create and layout all GUI widgets for the application.
+        """
         frame = ttk.Frame(self.root, padding=10)
         frame.pack(fill='both', expand=True)
 
@@ -125,12 +175,14 @@ class GarmentApp:
         self.tree = ttk.Treeview(frame, columns=('ID', 'Name', 'Size', 'Color', 'Style', 'Quantity'), show='headings')
         for col in ('ID', 'Name', 'Size', 'Color', 'Style', 'Quantity'):
             self.tree.heading(col, text=col)
-            self.tree.column(col, width=100)
+            self.tree.column(col, width=100, anchor='center')
         self.tree.pack(fill='both', expand=True, pady=10)
         self.tree.bind('<<TreeviewSelect>>', self.on_tree_select)
 
     def import_csv(self):
-        """Open a file dialog to import garments from a CSV file and add them to the database."""
+        """
+        @brief Open a file dialog to import garments from a CSV file and add them to the database.
+        """
         file_path = filedialog.askopenfilename(
             title='Select CSV File',
             filetypes=[('CSV Files', '*.csv'), ('All Files', '*.*')]
@@ -155,7 +207,9 @@ class GarmentApp:
             messagebox.showerror('Import Failed', f'Error: {e}')
 
     def add_garment(self):
-        """Add a new garment to the database from the form fields."""
+        """
+        @brief Add a new garment to the database from the form fields.
+        """
         name = self.name_var.get().strip()
         size = self.size_var.get().strip()
         color = self.color_var.get().strip()
@@ -172,7 +226,9 @@ class GarmentApp:
         self.clear_form()
 
     def update_garment(self):
-        """Update the selected garment in the database with the form field values."""
+        """
+        @brief Update the selected garment in the database with the form field values.
+        """
         selected = self.tree.selection()
         if not selected:
             messagebox.showwarning('Select a record', 'No garment selected.')
@@ -194,7 +250,9 @@ class GarmentApp:
         self.clear_form()
 
     def delete_garment(self):
-        """Delete the selected garment from the database."""
+        """
+        @brief Delete the selected garment from the database.
+        """
         selected = self.tree.selection()
         if not selected:
             messagebox.showwarning('Select a record', 'No garment selected.')
@@ -206,7 +264,9 @@ class GarmentApp:
             self.clear_form()
 
     def clear_form(self):
-        """Clear all form fields and selection in the table."""
+        """
+        @brief Clear all form fields and selection in the table.
+        """
         self.name_var.set('')
         self.size_var.set('')
         self.color_var.set('')
@@ -215,14 +275,19 @@ class GarmentApp:
         self.tree.selection_remove(self.tree.selection())
 
     def refresh_table(self, filters=None):
-        """Refresh the table view with garments from the database, optionally filtered."""
+        """
+        @brief Refresh the table view with garments from the database, optionally filtered.
+        @param filters Dictionary of filter criteria (optional).
+        """
         for row in self.tree.get_children():
             self.tree.delete(row)
         for garment in self.db.fetch_garments(filters):
             self.tree.insert('', 'end', values=garment)
 
     def apply_filter(self):
-        """Apply the current filter fields to the garment table view."""
+        """
+        @brief Apply the current filter fields to the garment table view.
+        """
         filters = {
             'name': self.filter_name.get().strip(),
             'size': self.filter_size.get().strip(),
@@ -232,7 +297,9 @@ class GarmentApp:
         self.refresh_table(filters)
 
     def clear_filter(self):
-        """Clear all filter fields and refresh the table view."""
+        """
+        @brief Clear all filter fields and refresh the table view.
+        """
         self.filter_name.set('')
         self.filter_size.set('')
         self.filter_color.set('')
@@ -240,7 +307,10 @@ class GarmentApp:
         self.refresh_table()
 
     def on_tree_select(self, event):
-        """Populate the form fields with the selected garment's data from the table."""
+        """
+        @brief Populate the form fields with the selected garment's data from the table.
+        @param event Tkinter event object.
+        """
         selected = self.tree.selection()
         if not selected:
             return
@@ -251,6 +321,8 @@ class GarmentApp:
         self.style_var.set(garment[4])
         self.quantity_var.set(str(garment[5]))
 
+
+## @brief Main entry point for the Garment Inventory Management application.
 if __name__ == '__main__':
     root = tk.Tk()
     app = GarmentApp(root)
